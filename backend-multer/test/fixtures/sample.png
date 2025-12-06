@@ -1,0 +1,1 @@
+This is a dummy png file used for e2e tests. It has a .png extension so Multer accepts it.
