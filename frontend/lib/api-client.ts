@@ -243,6 +243,31 @@ class ApiClient {
     })
   }
 
+  // User endpoints
+  async searchUsers(search: string): Promise<UserData[]> {
+    const params = new URLSearchParams()
+    if (search) params.append("search", search)
+
+    const response = await fetch(`${API_URL}/users/search?${params.toString()}`, {
+      method: "GET",
+      headers: this.getHeaders(true),
+    })
+
+    const data = await this.handleResponse(response)
+    return Array.isArray(data) ? data : data.users || []
+  }
+
+  // Todo endpoints for public todos
+  async getUserPublicTodos(userId: string): Promise<Todo[]> {
+    const response = await fetch(`${API_URL}/users/${userId}/todos`, {
+      method: "GET",
+      headers: this.getHeaders(true),
+    })
+
+    const data = await this.handleResponse(response)
+    return Array.isArray(data) ? data : data.todos || []
+  }
+  
   // Upload endpoint
   async uploadImage(file: File): Promise<{ imagePath: string }> {
     const formData = new FormData()

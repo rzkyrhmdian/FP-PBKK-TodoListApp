@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { LogOut, Plus, List } from "lucide-react"
+import { LogOut, Plus, List, Search } from "lucide-react"
+import { UserSearch } from "../user/user-search"
 import { TodoForm } from "./todo-form"
 import { TodoList } from "./todo-list"
 import { apiClient } from "@/lib/api-client"
@@ -74,7 +75,7 @@ export function TodoDashboard({ onLogout }: TodoDashboardProps) {
         category: filterCategory === "all" ? undefined : filterCategory,
         isPublic: isPublicFilter,
         isCompleted: isCompletedFilter,
-        dueDate: filterDueDate !== "" ? filterDueDate : undefined,
+        dueDate: filterDueDate || undefined,
         page: pageToLoad,
         limit: 10,
       })
@@ -244,6 +245,18 @@ export function TodoDashboard({ onLogout }: TodoDashboardProps) {
             <Plus size={18} />
             Buat Todo Baru
           </Button>
+
+          <Button
+            onClick={() => setCurrentPage("search")}
+            className={`flex items-center gap-2 ${
+              currentPage === "search"
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-foreground hover:bg-secondary/80"
+            }`}
+          >
+            <Search size={18} />
+            Cari User
+          </Button>
         </div>
 
         {/* Pages */}
@@ -271,7 +284,7 @@ export function TodoDashboard({ onLogout }: TodoDashboardProps) {
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">Tampilkan</label>
                     <Select value={filterVisibility} onValueChange={setFilterVisibility}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full border-2 bg-input border-border rounded-md focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all">
                         <SelectValue placeholder="Pilih Tampilan" />
                       </SelectTrigger>
                       <SelectContent>
@@ -286,7 +299,7 @@ export function TodoDashboard({ onLogout }: TodoDashboardProps) {
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">Prioritas</label>
                     <Select value={filterPriority} onValueChange={setFilterPriority}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full border-2 bg-input border-border rounded-md focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all">
                         <SelectValue placeholder="Pilih Prioritas" />
                       </SelectTrigger>
                       <SelectContent>
@@ -302,7 +315,7 @@ export function TodoDashboard({ onLogout }: TodoDashboardProps) {
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">Status</label>
                     <Select value={filterStatus} onValueChange={setFilterStatus}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full border-2 bg-input border-border rounded-md focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all">
                         <SelectValue placeholder="Pilih Status" />
                       </SelectTrigger>
                       <SelectContent>
@@ -317,7 +330,7 @@ export function TodoDashboard({ onLogout }: TodoDashboardProps) {
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">Kategori</label>
                     <Select value={filterCategory} onValueChange={setFilterCategory}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full bg-input border-2 border-border rounded-md focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all">
                         <SelectValue placeholder="Pilih Kategori" />
                       </SelectTrigger>
                       <SelectContent>
@@ -435,6 +448,7 @@ export function TodoDashboard({ onLogout }: TodoDashboardProps) {
             />
           </Card>
         )}
+       {currentPage === "search" && <UserSearch onBack={() => setCurrentPage("list")} />}
       </main>
     </div>
   )
