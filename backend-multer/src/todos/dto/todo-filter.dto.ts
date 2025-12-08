@@ -48,9 +48,9 @@ export class TodoFilterDto {
 
   // User Story: "Filter by due date"
   @IsOptional()
-  @IsDate()
-  @Type(() => Date)
-  dueDate?: Date;
+  @IsString()
+  dueDate?: string;
+
 
   // User Story: "List all tasks with pagination"
   @IsOptional()

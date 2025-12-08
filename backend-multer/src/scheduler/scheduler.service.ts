@@ -10,10 +10,12 @@ export class SchedulerService {
     private mailService: MailService,
   ) {}
 
-  @Cron('0 8 * * *')
+  @Cron('0 8 * * *', { timeZone: 'Asia/Jakarta' })
+  // @Cron('*/1 * * * *')
   async handleDailyReminders() {
     console.log('--- Menjalankan Cron Job: Cek Deadline Tugas ---');
 
+    // Menentukan rentang waktu "Besok"
     const today = new Date();
     const tomorrowStart = new Date(today);
     tomorrowStart.setDate(today.getDate() + 1);
@@ -22,21 +24,23 @@ export class SchedulerService {
     const tomorrowEnd = new Date(tomorrowStart);
     tomorrowEnd.setHours(23, 59, 59, 999);
 
+    // Todo yang deadline-nya BESOK dan belum selesai
     const tasksDueTomorrow = await this.prisma.todo.findMany({
       where: {
         dueDate: {
-          gte: tomorrowStart, 
-          lte: tomorrowEnd,   
+          gte: tomorrowStart,
+          lte: tomorrowEnd,
         },
-        completed: false, 
+        completed: false,
       },
       include: {
-        user: true,
+        user: true, 
       },
     });
 
     console.log(`Ditemukan ${tasksDueTomorrow.length} tugas yang deadline besok.`);
 
+    // Kirim email untuk setiap tugas
     for (const todo of tasksDueTomorrow) {
       if (todo.user && todo.user.email) {
         await this.mailService.sendTodoReminder(todo.user, todo);
@@ -44,4 +48,5 @@ export class SchedulerService {
       }
     }
   }
+  
 }

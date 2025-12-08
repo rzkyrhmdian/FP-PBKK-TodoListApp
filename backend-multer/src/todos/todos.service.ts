@@ -43,20 +43,19 @@ export class TodosService {
 
     let dateFilter: any = undefined;
       if (dueDate) {
-    // treat as UTC date from FE
-    const date = new Date(dueDate + "T00:00:00.000Z");
+      const date = new Date(dueDate + "T00:00:00.000Z");
 
-    const startOfDay = new Date(date);
-    startOfDay.setUTCHours(0, 0, 0, 0);
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
 
-    const endOfDay = new Date(date);
-    endOfDay.setUTCHours(23, 59, 59, 999);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
 
-    dateFilter = {
-      gte: startOfDay,
-      lte: endOfDay,
-    };
-  }
+      dateFilter = {
+        gte: startOfDay,
+        lte: endOfDay,
+      };
+    }
 
 
     const where = {
@@ -74,7 +73,7 @@ export class TodosService {
         },
         {
           // Public todos from other users
-          userId: { not: userId }, // Dari user lain
+          userId: { not: userId },
           isPublic: true,
           ...(search && {
             title: { contains: search },

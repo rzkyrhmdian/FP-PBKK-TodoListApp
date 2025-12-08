@@ -36,27 +36,22 @@ interface RequestWithUser extends Request {
 export class TodosController {
   constructor(private readonly todosService: TodosService) {}
 
-  // 1. CREATE TODO
-  // Requirement: "Create a task" [cite: 160]
   @Post()
   async create(
     @Body() createTodoDto: CreateTodoDto,
     @Request() req: RequestWithUser,
   ) {
     try {
-      // Mengirim User ID dari JWT ke service
       return await this.todosService.create(req.user.id, createTodoDto);
     } catch (error) {
       handlePrismaError(error, 'Create todo');
     }
   }
 
-  // 2. FIND ALL (Search, Filter, Pagination)
-  // Requirement: "View all tasks", "Search and filter" [cite: 166, 169]
   @Get()
-  @UsePipes(new ValidationPipe({ transform: true })) // Transform query params string ke tipe data asli
+  @UsePipes(new ValidationPipe({ transform: true }))
   async findAll(
-    @Query() filterDto: TodoFilterDto, // Menangkap ?search=...&priority=...
+    @Query() filterDto: TodoFilterDto,
     @Request() req: RequestWithUser,
   ) {
     try {
@@ -66,8 +61,6 @@ export class TodosController {
     }
   }
 
-  // 3. FIND ONE
-  // Requirement: "See task details" [cite: 168]
   @Get(':id')
   async findOne(
     @Param('id') id: string,
@@ -80,9 +73,7 @@ export class TodosController {
     }
   }
 
-  // 4. UPDATE TODO
-  // Requirement: "Mark tasks as complete", "Edit tasks" [cite: 171-172]
-  @Patch(':id') // Menggunakan Patch karena kita update parsial
+  @Patch(':id')
   async update(
     @Param('id') id: string,
     @Body() updateTodoDto: UpdateTodoDto,
@@ -95,8 +86,6 @@ export class TodosController {
     }
   }
 
-  // 5. DELETE TODO
-  // Requirement: "Delete my tasks" [cite: 172]
   @Delete(':id')
   async remove(
     @Param('id') id: string,

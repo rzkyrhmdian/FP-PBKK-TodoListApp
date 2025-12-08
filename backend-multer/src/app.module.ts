@@ -1,14 +1,15 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config'; // 1. Untuk membaca .env
-import { ServeStaticModule } from '@nestjs/serve-static'; // 2. Untuk akses gambar upload
+import { ConfigModule } from '@nestjs/config';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
-
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
-import { TodosModule } from './todos/todos.module'; // 3. Menggantikan PostsModule
+import { TodosModule } from './todos/todos.module';
 import { UploadModule } from './upload/upload.module';
-import { PrismaModule } from './prisma/prisma.module'; // 4. Module Global Database
+import { PrismaModule } from './prisma/prisma.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
+import { UsersModule } from './users/users.module';
 import { JwtStrategy } from './auth/strategy/jwt.strategy';
 import { RtStrategy } from './auth/strategy/rt.strategy';
 import { AuthService } from './auth/auth.service';
@@ -17,25 +18,23 @@ import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
-    // A. Load Environment Variables (.env) secara global
     ConfigModule.forRoot({
       isGlobal: true, 
     }),
 
-    // B. Konfigurasi agar folder 'uploads' bisa diakses browser
-    // Contoh akses: http://localhost:3000/uploads/gambar-anda.jpg
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'), 
       serveRoot: '/uploads',
     }),
 
-    // C. Module Fitur
-    PrismaModule, // Pastikan PrismaService sudah dibungkus module (Best Practice)
+    PrismaModule,
     AuthModule,
-    TodosModule,  // Modul utama Todo List
-    UploadModule, // Modul File Upload
+    TodosModule,  
+    UploadModule,
+    UsersModule,
     ScheduleModule.forRoot(),
-    MailModule, // (Akan kita tambahkan setelah ini)
+    SchedulerModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [AppService], 
