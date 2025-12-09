@@ -4,7 +4,7 @@ import {
   Delete,
   Get,
   Param,
-  Patch, // Menggunakan Patch untuk partial update
+  Patch,
   Post,
   Query,
   Request,
@@ -13,8 +13,6 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-// Pastikan interface User di request sesuai dengan return dari JwtStrategy
-// Biasanya payload JWT berisi sub (id) dan username
 import { JwtPayloadDto } from '../auth/dto/jwt-payload.dto'; 
 import { handlePrismaError } from '../common/prisma-error.handler';
 import { TodosService } from './todos.service';
@@ -22,17 +20,16 @@ import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 import { TodoFilterDto } from './dto/todo-filter.dto';
 
-// Interface custom agar TypeScript mengenali req.user
 interface RequestWithUser extends Request {
   user: {
-    id: string;       // Ubah ini menyesuaikan output JwtStrategy Anda
+    id: string;
     username: string;
     email: string;
   };
 }
 
 @Controller('todos')
-@UseGuards(JwtAuthGuard) // Terapkan Guard di level controller agar semua route terproteksi
+@UseGuards(JwtAuthGuard) 
 export class TodosController {
   constructor(private readonly todosService: TodosService) {}
 

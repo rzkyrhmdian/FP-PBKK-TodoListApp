@@ -21,7 +21,7 @@ export class TodosService {
       },
       include: {
         user: {
-          select: { username: true, email: true }, 
+          select: { username: true, email: true, id: true }, 
         },
       },
     });

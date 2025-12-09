@@ -36,9 +36,13 @@ export class CreateTodoDto {
 
   @IsOptional()
   @IsString()
-  category?: TodoPriority;
+  category?: string;
 
   @IsOptional()
   @IsBoolean()
   isPublic?: boolean;
+
+  @IsOptional()
+  @IsString()
+  imagePath?: string;
 }

@@ -169,14 +169,11 @@ class ApiClient {
   }
 
   // Todo endpoints
-  async createTodo(todo: Omit<Todo, "id" | "createdAt" | "updatedAt" | "userId">, imagePath?: string) {
+  async createTodo(todo: Omit<Todo, "id" | "createdAt" | "updatedAt" | "userId">) {
     return this.fetchWithAuth(`${API_URL}/todos`, {
       method: "POST",
       headers: this.getHeaders(true),
-      body: JSON.stringify({
-        ...todo,
-        imagePath: imagePath || undefined,
-      }),
+      body: JSON.stringify(todo),
     })
   }
 

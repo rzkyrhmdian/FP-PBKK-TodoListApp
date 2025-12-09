@@ -4,17 +4,27 @@ import request from 'supertest';
 import { AppModule } from './../src/app.module';
 import { PrismaService } from './../src/prisma.service';
 import { MailService } from './../src/mail/mail.service';
-import { existsSync, unlinkSync } from 'fs';
+import { SchedulerService } from './../src/scheduler/scheduler.service';
+import { existsSync, unlinkSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
-describe('AppController (E2E)', () => {
+describe('Todo App E2E Tests - Complete Coverage', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  let accessToken: string;
-  let todoId: string;     
+  let schedulerService: SchedulerService;
+  let accessTokenA: string;
+  let accessTokenB: string;
+  let refreshTokenA: string;
+  let refreshTokenB: string;
+  let userIdA: string;
+  let userIdB: string;
+  let todoIdA: string;
+  let publicTodoIdA: string;
+  let todoWithImageId: string;
 
   const mockMailService = {
     sendTodoReminder: jest.fn().mockResolvedValue(true),
+    sendDailySummary: jest.fn().mockResolvedValue(true),
   };
 
   beforeAll(async () => {
@@ -22,168 +32,492 @@ describe('AppController (E2E)', () => {
       imports: [AppModule],
     })
       .overrideProvider(MailService)
-      .useValue(mockMailService)    
+      .useValue(mockMailService)
       .compile();
 
     app = moduleFixture.createNestApplication();
-    
+
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    
+
     await app.init();
     prisma = app.get<PrismaService>(PrismaService);
-  });
-
-  beforeEach(async () => {
+    schedulerService = app.get<SchedulerService>(SchedulerService);
   });
 
   afterAll(async () => {
     if (prisma) {
-        await prisma.todo.deleteMany();
-        await prisma.user.deleteMany();
+      await prisma.todo.deleteMany();
+      await prisma.user.deleteMany();
     }
-    
+
     if (app) {
-        await app.close(); 
+      await app.close();
     }
   });
 
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
-  describe('Auth', () => {
-    it('/auth/register (POST) - should register a new user', () => {
+  describe('1. Authentication & Authorization', () => {
+    it('/auth/register (POST) - successfully register user A with all fields', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          email: 'usera@example.com',
+          username: 'usera',
+          password: 'password123',
+          name: 'User A',
+        })
+        .expect(201);
+
+      expect(res.body).toHaveProperty('access_token');
+      expect(res.body).toHaveProperty('refresh_token');
+      expect(res.body.user).toMatchObject({
+        email: 'usera@example.com',
+        username: 'usera',
+        name: 'User A',
+      });
+      expect(res.body.user).toHaveProperty('id');
+      userIdA = res.body.user.id;
+    });
+
+    it('/auth/register (POST) - fail with duplicate username', () => {
+      return request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          email: 'another@example.com',
+          username: 'usera',
+          password: 'password123',
+          name: 'Another User',
+        })
+        .expect(409);
+    });
+
+    it('/auth/register (POST) - fail with duplicate email', () => {
+      return request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          email: 'usera@example.com',
+          username: 'anotherusername',
+          password: 'password123',
+          name: 'Another User',
+        })
+        .expect(409);
+    });
+
+    it('/auth/register (POST) - fail with missing required fields', () => {
       return request(app.getHttpServer())
         .post('/auth/register')
         .send({
           email: 'test@example.com',
+        })
+        .expect(400);
+    });
+
+    it('/auth/register (POST) - fail with invalid email format', () => {
+      return request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          email: 'invalidemail',
           username: 'testuser',
           password: 'password123',
           name: 'Test User',
         })
-        .expect(201);
+        .expect(400);
     });
 
-    it('/auth/login (POST) - should login and return JWT', async () => {
-      const response = await request(app.getHttpServer())
+    it('/auth/register (POST) - register user B', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          email: 'userb@example.com',
+          username: 'userb',
+          password: 'password123',
+          name: 'User B',
+        })
+        .expect(201);
+
+      userIdB = res.body.user.id;
+    });
+
+    it('/auth/login (POST) - successfully login user A', async () => {
+      const res = await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          email: 'test@example.com',
-          username: 'testuser', 
+          username: 'usera',
           password: 'password123',
         })
         .expect(201);
 
-        expect(response.body).toHaveProperty('access_token');
-      accessToken = response.body.access_token;
+      expect(res.body).toHaveProperty('access_token');
+      expect(res.body).toHaveProperty('refresh_token');
+      expect(res.body.user).toMatchObject({
+        username: 'usera',
+        email: 'usera@example.com',
+      });
+      accessTokenA = res.body.access_token;
+      refreshTokenA = res.body.refresh_token;
     });
 
-    it('/auth/login (POST) - should fail with wrong password', () => {
-      return request(app.getHttpServer())
+    it('/auth/login (POST) - successfully login user B', async () => {
+      const res = await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          username: 'testuser',
-          password: 'wrongpassword',
-        })
-        .expect(401); 
-    });
-  });
-
-  describe('Todos', () => {
-    it('/todos (GET) - should fail without token', () => {
-      return request(app.getHttpServer())
-        .get('/todos')
-        .expect(401);
-    });
-
-    it('/todos (POST) - should create a todo', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/todos')
-        .set('Authorization', `Bearer ${accessToken}`) 
-        .send({
-          title: 'Belajar NestJS E2E',
-          description: 'Mengerjakan Final Project',
-          priority: 'high',
-          dueDate: new Date().toISOString(),
-          category: 'Kuliah',
+          username: 'userb',
+          password: 'password123',
         })
         .expect(201);
 
-      expect(response.body).toHaveProperty('id');
-      expect(response.body.title).toEqual('Belajar NestJS E2E');
-      todoId = response.body.id;
+      accessTokenB = res.body.access_token;
+      refreshTokenB = res.body.refresh_token;
     });
 
-    it('/todos (POST) - should fail if title is missing', () => {
+    it('/auth/login (POST) - fail with wrong password', () => {
       return request(app.getHttpServer())
-        .post('/todos')
-        .set('Authorization', `Bearer ${accessToken}`)
+        .post('/auth/login')
         .send({
-          priority: 'high',
+          username: 'usera',
+          password: 'wrongpassword',
         })
-        .expect(400); 
+        .expect(401);
     });
 
-    it('/todos (GET) - should get list of todos with filter', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/todos?search=NestJS&priority=high')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(200);
-
-      expect(Array.isArray(response.body.data)).toBe(true);
-      expect(response.body.data.length).toBeGreaterThan(0);
-      expect(response.body.data[0].title).toContain('NestJS');
-    });
-
-    it('/todos/:id (GET) - should get a single todo', () => {
+    it('/auth/login (POST) - fail with non-existent user', () => {
       return request(app.getHttpServer())
-        .get(`/todos/${todoId}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(200)
-        .expect((res) => {
-          expect(res.body.id).toEqual(todoId);
-        });
-    });
-
-    it('/todos/:id (PATCH) - should update todo status', () => {
-      return request(app.getHttpServer())
-        .patch(`/todos/${todoId}`)
-        .set('Authorization', `Bearer ${accessToken}`)
+        .post('/auth/login')
         .send({
-          completed: true,
+          username: 'nonexistent',
+          password: 'password123',
         })
-        .expect(200)
-        .expect((res) => {
-          expect(res.body.completed).toBe(true);
-        });
+        .expect(401);
     });
 
-    it('/todos/:id (DELETE) - should delete todo', () => {
+    it('/auth/login (POST) - fail with missing credentials', () => {
       return request(app.getHttpServer())
-        .delete(`/todos/${todoId}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(200);
+        .post('/auth/login')
+        .send({
+          username: 'usera',
+        })
+        .expect(400);
     });
 
-    it('/todos/:id (GET) - should not find deleted todo', () => {
+    it('/auth/refresh (POST) - successfully refresh access token', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({
+          refreshToken: refreshTokenA,
+        })
+        .expect(201);
+
+      expect(res.body).toHaveProperty('access_token');
+      expect(res.body).toHaveProperty('refresh_token');
+      accessTokenA = res.body.access_token;
+      refreshTokenA = res.body.refresh_token;
+    });
+
+    it('/auth/refresh (POST) - fail with invalid refresh token', () => {
       return request(app.getHttpServer())
-        .get(`/todos/${todoId}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(404); 
+        .post('/auth/refresh')
+        .send({
+          refreshToken: 'invalid.token.here',
+        })
+        .expect(401);
+    });
+
+    it('/auth/refresh (POST) - fail without refresh token', () => {
+      return request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({})
+        .expect(400);
     });
   });
 
-  describe('Upload', () => {
+  describe('2. User Story 1: Create Task (CREATE) - Title, Description, Priority, Due Date, Category', () => {
+    it('/todos (GET) - should fail without authentication token', () => {
+      return request(app.getHttpServer()).get('/todos').expect(401);
+    });
+
+    it('/todos (POST) - successfully create a complete todo with all fields (user A)', async () => {
+      const due = new Date();
+      due.setDate(due.getDate() + 2);
+      const res = await request(app.getHttpServer())
+        .post('/todos')
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .send({
+          title: 'Belajar NestJS E2E - Private',
+          description: 'Private task by user A',
+          priority: 'high',
+          dueDate: due.toISOString(),
+          category: 'Kuliah',
+          isPublic: false,
+        })
+        .expect(201);
+
+      expect(res.body).toHaveProperty('id');
+      expect(res.body.title).toContain('Belajar NestJS E2E - Private');
+      todoIdA = res.body.id;
+    });
+
+    it('/todos (POST) - create a public todo (user A)', async () => {
+      const due = new Date();
+      due.setDate(due.getDate() + 1);
+      const res = await request(app.getHttpServer())
+        .post('/todos')
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .send({
+          title: 'Belajar NestJS E2E - Public',
+          description: 'Public task by user A',
+          priority: 'medium',
+          dueDate: due.toISOString(),
+          category: 'Work',
+          isPublic: true,
+        })
+        .expect(201);
+
+      expect(res.body).toHaveProperty('id');
+      publicTodoIdA = res.body.id;
+    });
+
+    it('/todos (POST) - should fail if title missing', () => {
+      return request(app.getHttpServer())
+        .post('/todos')
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .send({ priority: 'high' })
+        .expect(400);
+    });
+
+    it('/todos (GET) - search & filter & includes public from others', async () => {
+      // User B should see user A's public todo when searching 'Public'
+      const resB = await request(app.getHttpServer())
+        .get('/todos')
+        .query({ search: 'Public', priority: 'medium' })
+        .set('Authorization', `Bearer ${accessTokenB}`)
+        .expect(200);
+
+      expect(Array.isArray(resB.body.data)).toBe(true);
+      expect(resB.body.data.some((t: any) => t.id === publicTodoIdA)).toBe(true);
+      const resB2 = await request(app.getHttpServer())
+        .get('/todos')
+        .query({ search: 'Private' })
+        .set('Authorization', `Bearer ${accessTokenB}`)
+        .expect(200);
+
+      const foundPrivate = resB2.body.data.some((t: any) => t.id === todoIdA);
+      expect(foundPrivate).toBe(false);
+    });
+
+    it('/todos/:id (GET) - user A can get private todo', () => {
+      return request(app.getHttpServer())
+        .get(`/todos/${todoIdA}`)
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.id).toEqual(todoIdA);
+          expect(res.body.user).toBeDefined();
+        });
+    });
+
+    it('/todos/:id (GET) - user B cannot get A\'s private todo (403)', () => {
+      return request(app.getHttpServer())
+        .get(`/todos/${todoIdA}`)
+        .set('Authorization', `Bearer ${accessTokenB}`)
+        .expect(403);
+    });
+
+    it('/todos/:id (PATCH) - user B cannot update A\'s todo (403)', () => {
+      return request(app.getHttpServer())
+        .patch(`/todos/${todoIdA}`)
+        .set('Authorization', `Bearer ${accessTokenB}`)
+        .send({ title: 'Malicious Update' })
+        .expect(403);
+    });
+
+    it('/todos/:id (PATCH) - user A can toggle completed', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/todos/${todoIdA}`)
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .send({ completed: true })
+        .expect(200);
+
+      expect(res.body.completed).toBe(true);
+    });
+
+    it('/todos/:id (DELETE) - user B cannot delete A\'s todo (403)', () => {
+      return request(app.getHttpServer())
+        .delete(`/todos/${todoIdA}`)
+        .set('Authorization', `Bearer ${accessTokenB}`)
+        .expect(403);
+    });
+
+    it('/todos/:id (DELETE) - user A can delete their todo', () => {
+      return request(app.getHttpServer())
+        .delete(`/todos/${todoIdA}`)
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .expect(200);
+    });
+
+    it('/todos/:id (GET) - deleted todo not found', () => {
+      return request(app.getHttpServer())
+        .get(`/todos/${todoIdA}`)
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .expect(404);
+    });
+
+    it('Create multiple todos to test pagination, filters and meta counts', async () => {
+      const createPromises: Promise<any>[] = [];
+
+      for (let i = 0; i < 15; i++) {
+        createPromises.push(
+          request(app.getHttpServer())
+            .post('/todos')
+            .set('Authorization', `Bearer ${accessTokenA}`)
+            .send({
+              title: `Paginate Task #${i}`,
+              description: `desc ${i}`,
+              priority: i % 2 === 0 ? 'low' : 'high',
+              category: i % 3 === 0 ? 'Work' : 'Personal',
+              completed: i < 10,
+              isPublic: i % 5 === 0,
+            })
+            .expect(201)
+        );
+      }
+
+      await Promise.all(createPromises);
+    });
+
+
+    it('/todos (GET) - pagination page=2&limit=10', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/todos')
+        .query({ page: 2, limit: 10 })
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .expect(200);
+
+      expect(res.body.meta).toBeDefined();
+      expect(res.body.meta.page).toBe(2);
+      expect(res.body.meta.total).toBeGreaterThanOrEqual(15); 
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThanOrEqual(0);
+    });
+
+    it('/todos (GET) - filter by category=Work and priority=low', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/todos')
+        .query({ category: 'Work', priority: 'low', limit: 50 })
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .expect(200);
+
+      expect(Array.isArray(res.body.data)).toBe(true);
+      for (const t of res.body.data) {
+        expect(t.category).toBe('Work');
+        expect(t.priority).toBe('low');
+      }
+    });
+
+    it('/todos (GET) - filter by completed=true', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/todos')
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .send({
+          title: 'Completed filter seed',
+          description: 'for completed filter',
+          priority: 'low',
+          category: 'Work',
+          isPublic: false,
+        })
+        .expect(201);
+
+      const seedId = createRes.body.id;
+
+      await request(app.getHttpServer())
+        .patch(`/todos/${seedId}`)
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .send({ completed: true })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get('/todos')
+        .query({ isCompleted: true, limit: 50 })
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .expect(200);
+
+      expect(res.body.meta.completedCount).toBeGreaterThanOrEqual(1);
+      for (const t of res.body.data) {
+        expect(t.completed).toBe(true);
+      }
+    });
+
+    it('/todos (GET) - filter by dueDate (specific day)', async () => {
+      const today = new Date();
+      const isoDay = today.toISOString().split('T')[0];
+
+      await request(app.getHttpServer())
+        .post('/todos')
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .send({
+          title: 'Due Today Task',
+          priority: 'medium',
+          dueDate: today.toISOString(),
+          category: 'Misc',
+        })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .get('/todos')
+        .query({ dueDate: isoDay, limit: 50 })
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .expect(200);
+
+      expect(res.body.data.some((t: any) => {
+        if (!t.dueDate) return false;
+        const d = new Date(t.dueDate);
+        return d.toISOString().startsWith(isoDay);
+      })).toBe(true);
+    });
+
+    it('/todos (GET) - search by unique title', async () => {
+      const uniqueTitle = 'UniqueSearchTitle12345';
+      await request(app.getHttpServer())
+        .post('/todos')
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .send({
+          title: uniqueTitle,
+          description: 'just for search',
+        })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .get('/todos')
+        .query({ search: 'UniqueSearchTitle12345' })
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .expect(200);
+
+      expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.data[0].title).toContain('UniqueSearchTitle12345');
+    });
+
+    it('/todos/:id (DELETE) - cleanup public todo of user A', () => {
+      return request(app.getHttpServer())
+        .delete(`/todos/${publicTodoIdA}`)
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .expect(200);
+    });
+  });
+
+  describe('Upload (file) - existing tests retained', () => {
     const fixturePath = join(__dirname, 'fixtures', 'sample.png');
     let uploadedImagePath: string | null = null;
 
     it('/upload (POST) - should fail without token', () => {
-      return request(app.getHttpServer())
-        .post('/upload')
-        .expect(401);
+      return request(app.getHttpServer()).post('/upload').expect(401);
     });
 
     it('/upload (POST) - should upload image with token', async () => {
       const res = await request(app.getHttpServer())
         .post('/upload')
-        .set('Authorization', `Bearer ${accessToken}`)
+        .set('Authorization', `Bearer ${accessTokenA}`)
         .attach('image', fixturePath)
         .expect(201);
 
