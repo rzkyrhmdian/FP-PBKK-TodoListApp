@@ -540,4 +540,157 @@ describe('Todo App E2E Tests - Complete Coverage', () => {
       }
     });
   });
+
+  describe('3. User Story 7: View Other Users Todo Lists (READ)', () => {
+    it('/users/search (GET) - search users by username', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/users/search')
+        .query({ search: 'usera' })
+        .set('Authorization', `Bearer ${accessTokenB}`)
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.some((u: any) => u.username === 'usera')).toBe(true);
+    });
+
+    it('/users/search (GET) - search users by name', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/users/search')
+        .query({ search: 'User A' })
+        .set('Authorization', `Bearer ${accessTokenB}`)
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.some((u: any) => u.name === 'User A')).toBe(true);
+    });
+
+    it('/users/search (GET) - search users by email', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/users/search')
+        .query({ search: 'usera@example.com' })
+        .set('Authorization', `Bearer ${accessTokenB}`)
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.some((u: any) => u.email === 'usera@example.com')).toBe(true);
+    });
+
+    it('/users/search (GET) - empty search returns empty array', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/users/search')
+        .query({ search: '' })
+        .set('Authorization', `Bearer ${accessTokenB}`)
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBe(0);
+    });
+
+    it('/users/search (GET) - no results for non-existent user', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/users/search')
+        .query({ search: 'nonexistentuser99999' })
+        .set('Authorization', `Bearer ${accessTokenB}`)
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBe(0);
+    });
+
+    it('/users/:id/todos (GET) - get public todos of user A', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/todos')
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .send({
+          title: 'Public Todo for User Service Test',
+          description: 'This is public',
+          priority: 'medium',
+          category: 'Test',
+          isPublic: true,
+        })
+        .expect(201);
+
+      const publicTodoId = createRes.body.id;
+
+      const res = await request(app.getHttpServer())
+        .get(`/users/${userIdA}/todos`)
+        .set('Authorization', `Bearer ${accessTokenB}`)
+        .expect(200);
+
+      expect(res.body).toHaveProperty('user');
+      expect(res.body.user.id).toBe(userIdA);
+      expect(res.body.user.username).toBe('usera');
+      expect(res.body).toHaveProperty('todos');
+      expect(Array.isArray(res.body.todos)).toBe(true);
+      expect(res.body.todos.some((t: any) => t.id === publicTodoId)).toBe(true);
+
+      await request(app.getHttpServer())
+        .delete(`/todos/${publicTodoId}`)
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .expect(200);
+    });
+
+    it('/users/:id/todos (GET) - should not return private todos', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/todos')
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .send({
+          title: 'Private Todo for User Service Test',
+          description: 'This is private',
+          priority: 'high',
+          category: 'Test',
+          isPublic: false,
+        })
+        .expect(201);
+
+      const privateTodoId = createRes.body.id;
+
+      const res = await request(app.getHttpServer())
+        .get(`/users/${userIdA}/todos`)
+        .set('Authorization', `Bearer ${accessTokenB}`)
+        .expect(200);
+
+      expect(res.body).toHaveProperty('todos');
+      expect(res.body.todos.some((t: any) => t.id === privateTodoId)).toBe(false);
+
+      await request(app.getHttpServer())
+        .delete(`/todos/${privateTodoId}`)
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .expect(200);
+    });
+
+    it('/users/:id/todos (GET) - should fail for non-existent user', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/users/nonexistentuserid123/todos')
+        .set('Authorization', `Bearer ${accessTokenB}`)
+        .expect(404);
+
+      expect(res.body.message).toContain('User tidak ditemukan');
+    });
+  });
+
+  describe('4. User Story 8: Email Reminders (Email)', () => {
+    it('SchedulerService - handleDailyReminders should call mail service', async () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(12, 0, 0, 0);
+
+      await request(app.getHttpServer())
+        .post('/todos')
+        .set('Authorization', `Bearer ${accessTokenA}`)
+        .send({
+          title: 'Task Due Tomorrow',
+          description: 'Should trigger reminder',
+          priority: 'high',
+          dueDate: tomorrow.toISOString(),
+          category: 'Urgent',
+          isPublic: false,
+        })
+        .expect(201);
+
+      await schedulerService.handleDailyReminders();
+
+      expect(mockMailService.sendTodoReminder).toHaveBeenCalled();
+    });
+  });
 });
