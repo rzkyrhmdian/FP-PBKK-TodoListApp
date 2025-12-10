@@ -24,7 +24,6 @@ export class SchedulerService {
     const tomorrowEnd = new Date(tomorrowStart);
     tomorrowEnd.setHours(23, 59, 59, 999);
 
-    // Todo yang deadline-nya BESOK dan belum selesai
     const tasksDueTomorrow = await this.prisma.todo.findMany({
       where: {
         dueDate: {
@@ -40,7 +39,6 @@ export class SchedulerService {
 
     console.log(`Ditemukan ${tasksDueTomorrow.length} tugas yang deadline besok.`);
 
-    // Kirim email untuk setiap tugas
     for (const todo of tasksDueTomorrow) {
       if (todo.user && todo.user.email) {
         await this.mailService.sendTodoReminder(todo.user, todo);

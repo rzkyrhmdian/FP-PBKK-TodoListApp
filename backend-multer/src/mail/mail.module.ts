@@ -5,17 +5,16 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { join } from 'path';
 import { MailService } from './mail.service';
 
-@Global() // Opsional: Agar MailService bisa dipakai di mana saja tanpa import module berulang
+@Global()
 @Module({
   imports: [
     MailerModule.forRootAsync({
-      imports: [ConfigModule], // Import ConfigModule
+      imports: [ConfigModule],
       useFactory: async (config: ConfigService) => ({
-        // Konfigurasi SMTP (Gmail, Mailtrap, dll)
         transport: {
           host: config.get('MAIL_HOST'),
-          port: 465, // atau 587
-          secure: true, // true untuk 465, false untuk 587
+          port: 465, 
+          secure: true,
           auth: {
             user: config.get('MAIL_USER'),
             pass: config.get('MAIL_PASS'),
@@ -25,7 +24,7 @@ import { MailService } from './mail.service';
           from: `"No Reply" <${config.get('MAIL_FROM')}>`,
         },
         template: {
-          dir: join(__dirname, 'templates'), // Lokasi folder template
+          dir: join(__dirname, 'templates'), 
           adapter: new HandlebarsAdapter(),
           options: {
             strict: true,
