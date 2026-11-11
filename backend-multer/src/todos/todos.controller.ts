@@ -58,6 +58,18 @@ export class TodosController {
     }
   }
 
+  @Get('public')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async findPublic(
+    @Query() filterDto: TodoFilterDto,
+  ) {
+    try {
+      return await this.todosService.findPublic(filterDto);
+    } catch (error) {
+      handlePrismaError(error, 'Fetch public todos');
+    }
+  }
+
   @Get(':id')
   async findOne(
     @Param('id') id: string,

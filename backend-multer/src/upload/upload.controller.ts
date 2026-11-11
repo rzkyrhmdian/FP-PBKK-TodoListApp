@@ -16,7 +16,7 @@ import { UploadService } from './upload.service';
 
 @Controller('upload')
 export class UploadController {
-  constructor(private readonly uploadService: UploadService) {}
+  constructor(private readonly uploadService: UploadService) { }
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -28,6 +28,10 @@ export class UploadController {
 
     return {
       imagePath: `uploads/${file.filename}`,
+      filename: file.filename,
+      originalName: file.originalname,
+      size: file.size,
+      mimetype: file.mimetype,
     };
   }
 

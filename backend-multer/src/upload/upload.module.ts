@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, BadRequestException } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { UploadController } from './upload.controller';
 import { UploadService } from './upload.service';
@@ -20,8 +20,14 @@ import { extname } from 'path';
         fileSize: 5 * 1024 * 1024, // 5MB limit
       },
       fileFilter: (req, file, callback) => {
+        // Pembatasan ketat hanya untuk format gambar sesuai kebutuhan jadwal to-do
         if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-          return callback(new Error('Only image files are allowed!'), false);
+          return callback(
+            new BadRequestException(
+              'Hanya berkas gambar (.jpg, .jpeg, .png, .gif, .webp) yang diizinkan untuk lampiran tugas!',
+            ),
+            false,
+          );
         }
         callback(null, true);
       },
@@ -31,4 +37,4 @@ import { extname } from 'path';
   providers: [UploadService],
   exports: [UploadService],
 })
-export class UploadModule {}
+export class UploadModule { }

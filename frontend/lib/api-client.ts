@@ -217,6 +217,32 @@ class ApiClient {
     })
   }
 
+  async getPublicTodos(options?: {
+    search?: string
+    priority?: string
+    category?: string
+    isCompleted?: boolean
+    dueDate?: string
+    page?: number
+    limit?: number
+  }) {
+    const params = new URLSearchParams()
+    const { search, priority, category, isCompleted, dueDate, page = 1, limit = 10 } = options || {}
+
+    if (search) params.append("search", search)
+    if (priority && priority !== "all") params.append("priority", priority)
+    if (category && category !== "all") params.append("category", category)
+    if (isCompleted !== undefined) params.append("isCompleted", String(isCompleted))
+    if (dueDate) params.append("dueDate", dueDate)
+    if (page) params.append("page", String(page))
+    if (limit) params.append("limit", String(limit))
+
+    return this.fetchWithAuth(`${API_URL}/todos/public?${params.toString()}`, {
+      method: "GET",
+      headers: this.getHeaders(true),
+    })
+  }
+
 
   async getTodoById(id: string) {
     return this.fetchWithAuth(`${API_URL}/todos/${id}`, {
@@ -264,14 +290,21 @@ class ApiClient {
     const data = await this.handleResponse(response)
     return Array.isArray(data) ? data : data.todos || []
   }
-  
+
   // Upload endpoint
-  async uploadImage(file: File): Promise<{ imagePath: string }> {
+  async uploadImage(file: File): Promise<{ imagePath: string; filename?: string; originalName?: string; size?: number; mimetype?: string }> {
     const formData = new FormData()
     formData.append("image", file)
     return this.fetchWithAuth(`${API_URL}/upload`, {
       method: "POST",
       body: formData,
+    })
+  }
+
+  async deleteUploadedFile(filename: string): Promise<{ message: string; filename: string }> {
+    return this.fetchWithAuth(`${API_URL}/upload/${filename}`, {
+      method: "DELETE",
+      headers: this.getHeaders(true),
     })
   }
 

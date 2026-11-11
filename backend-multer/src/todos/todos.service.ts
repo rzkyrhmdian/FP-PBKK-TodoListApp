@@ -62,32 +62,19 @@ export class TodosService {
     }
 
 
-    const where = {
-      OR: [
-        {
-          userId,
-          ...(search && {
-            title: { contains: search },
-          }),
-          ...(priority && { priority }),
-          ...(category && { category }),
-          ...(isCompleted !== undefined && { completed: isCompleted }),
-          ...(isPublic !== undefined && { isPublic }),
-          ...(dueDate && { dueDate: dateFilter }),
-        },
-        {
-          // Public todos from other users
-          userId: { not: userId },
-          isPublic: true,
-          ...(search && {
-            title: { contains: search },
-          }),
-          ...(priority && { priority }),
-          ...(category && { category }),
-          ...(isCompleted !== undefined && { completed: isCompleted }),
-          ...(dueDate && { dueDate: dateFilter }),
-        },
-      ],
+    const where: any = {
+      userId,
+      ...(search && {
+        OR: [
+          { title: { contains: search } },
+          { description: { contains: search } },
+        ],
+      }),
+      ...(priority && { priority }),
+      ...(category && { category }),
+      ...(isCompleted !== undefined && { completed: isCompleted }),
+      ...(isPublic !== undefined && { isPublic }),
+      ...(dueDate && { dueDate: dateFilter }),
     };
 
     const [todos, total, completedCount, pendingCount] = await this.prisma.$transaction([
@@ -100,7 +87,7 @@ export class TodosService {
         },
         include: {
           user: {
-            select: { username: true, id: true },
+            select: { id: true, username: true, name: true, email: true },
           },
         },
       }),
@@ -121,11 +108,78 @@ export class TodosService {
     };
   }
 
+  async findPublic(filterDto: TodoFilterDto) {
+    const { 
+      search, 
+      priority, 
+      category, 
+      isCompleted,
+      dueDate,
+      page = 1, 
+      limit = 10 
+    } = filterDto;
+
+    const skip = (page - 1) * limit;
+
+    let dateFilter: any = undefined;
+    if (dueDate) {
+      const date = new Date(dueDate + "T00:00:00.000Z");
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+      dateFilter = {
+        gte: startOfDay,
+        lte: endOfDay,
+      };
+    }
+
+    const where: any = {
+      isPublic: true,
+      ...(search && {
+        OR: [
+          { title: { contains: search } },
+          { description: { contains: search } },
+        ],
+      }),
+      ...(priority && { priority }),
+      ...(category && { category }),
+      ...(isCompleted !== undefined && { completed: isCompleted }),
+      ...(dueDate && { dueDate: dateFilter }),
+    };
+
+    const [todos, total] = await this.prisma.$transaction([
+      this.prisma.todo.findMany({
+        where,
+        take: limit,
+        skip: skip,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          user: {
+            select: { id: true, username: true, name: true, email: true },
+          },
+        },
+      }),
+      this.prisma.todo.count({ where }),
+    ]);
+
+    return {
+      data: todos,
+      meta: {
+        total,
+        page,
+        lastPage: Math.ceil(total / limit),
+      },
+    };
+  }
+
   async findOne(id: string, userId: string) {
     const todo = await this.prisma.todo.findUnique({
       where: { id },
       include: {
-        user: { select: { username: true } },
+        user: { select: { id: true, username: true, name: true, email: true } },
       },
     });
 
