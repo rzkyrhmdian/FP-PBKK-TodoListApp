@@ -5,13 +5,17 @@ import {
 } from '@nestjs/common';
 import * as Prisma from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { UploadService } from '../upload/upload.service';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 import { TodoFilterDto } from './dto/todo-filter.dto';
 
 @Injectable()
 export class TodosService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private uploadService: UploadService,
+  ) {}
 
   async create(userId: string, createTodoDto: CreateTodoDto) {
     return this.prisma.todo.create({
@@ -147,6 +151,15 @@ export class TodosService {
       throw new ForbiddenException('Anda hanya bisa mengedit todo milik sendiri');
     }
 
+    // Jika lampiran berkas diganti atau dikosongkan, hapus berkas lama dari disk agar tidak ada data/storage leakage
+    if (
+      updateTodoDto.imagePath !== undefined &&
+      todo.imagePath &&
+      updateTodoDto.imagePath !== todo.imagePath
+    ) {
+      await this.uploadService.deleteFile(todo.imagePath);
+    }
+
     return this.prisma.todo.update({
       where: { id },
       data: updateTodoDto,
@@ -162,6 +175,11 @@ export class TodosService {
 
     if (todo.userId !== userId) {
       throw new ForbiddenException('Anda hanya bisa menghapus todo milik sendiri');
+    }
+
+    // Hapus berkas lampiran dari disk jika ada, mencegah orphan files
+    if (todo.imagePath) {
+      await this.uploadService.deleteFile(todo.imagePath);
     }
 
     return this.prisma.todo.delete({

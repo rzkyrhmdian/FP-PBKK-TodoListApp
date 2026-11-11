@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { UploadController } from './upload.controller';
+import { UploadService } from './upload.service';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 
@@ -16,10 +17,10 @@ import { extname } from 'path';
         },
       }),
       limits: {
-        fileSize: 5 * 1024 * 1024, 
+        fileSize: 5 * 1024 * 1024, // 5MB limit
       },
       fileFilter: (req, file, callback) => {
-        if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+        if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
           return callback(new Error('Only image files are allowed!'), false);
         }
         callback(null, true);
@@ -27,5 +28,7 @@ import { extname } from 'path';
     }),
   ],
   controllers: [UploadController],
+  providers: [UploadService],
+  exports: [UploadService],
 })
 export class UploadModule {}
