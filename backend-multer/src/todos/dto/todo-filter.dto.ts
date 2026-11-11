@@ -51,6 +51,23 @@ export class TodoFilterDto {
   @IsString()
   dueDate?: string;
 
+  // User Story: "Calendar date range filtering" (Fase 1.3)
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  endDate?: string;
+
+  // User Story: "Sorting options" (Fase 1.3)
+  @IsOptional()
+  @IsString()
+  sortBy?: string; // 'dueDate' | 'createdAt' | 'priority' | 'title'
+
+  @IsOptional()
+  @IsString()
+  sortOrder?: 'asc' | 'desc'; // Default 'desc'
 
   // User Story: "List all tasks with pagination"
   @IsOptional()

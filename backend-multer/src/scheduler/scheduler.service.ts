@@ -14,41 +14,74 @@ export class SchedulerService {
     private uploadService: UploadService,
   ) {}
 
-  @Cron('0 8 * * *', { timeZone: 'Asia/Jakarta' })
-  // @Cron('*/1 * * * *')
-  async handleDailyReminders() {
-    this.logger.log('--- Menjalankan Cron Job: Cek Deadline Tugas ---');
+  /**
+   * Cron Job: Cek & Kirim Pengingat Email Otomatis.
+   * Berjalan setiap jam untuk memindai tugas yang mendekati deadline (24 jam ke depan),
+   * belum selesai (completed = false), dan belum pernah dikirimkan pengingat (reminderSent = false).
+   */
+  @Cron('0 * * * *', { timeZone: 'Asia/Jakarta' })
+  async handleHourlyReminders() {
+    this.logger.log('--- Menjalankan Cron Job: Pemindaian Deadline Pengingat Email ---');
+    await this.triggerReminders();
+  }
 
-    // Menentukan rentang waktu "Besok"
-    const today = new Date();
-    const tomorrowStart = new Date(today);
-    tomorrowStart.setDate(today.getDate() + 1);
-    tomorrowStart.setHours(0, 0, 0, 0);
+  /**
+   * Eksekusi pemindaian pengingat tugas (dapat dipanggil otomatis oleh Cron atau manual via Endpoint)
+   */
+  async triggerReminders() {
+    const now = new Date();
+    // Cari tugas dengan tenggat dalam rentang waktu 24 jam ke depan (atau yang sudah terlewat sedikit hari ini tapi belum diingatkan)
+    const reminderWindowEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-    const tomorrowEnd = new Date(tomorrowStart);
-    tomorrowEnd.setHours(23, 59, 59, 999);
-
-    const tasksDueTomorrow = await this.prisma.todo.findMany({
+    const upcomingTasks = await this.prisma.todo.findMany({
       where: {
         dueDate: {
-          gte: tomorrowStart,
-          lte: tomorrowEnd,
+          lte: reminderWindowEnd,
         },
         completed: false,
+        reminderSent: false,
       },
       include: {
         user: true, 
       },
     });
 
-    this.logger.log(`Ditemukan ${tasksDueTomorrow.length} tugas yang deadline besok.`);
+    this.logger.log(
+      `Ditemukan ${upcomingTasks.length} tugas yang perlu dikirimi pengingat (belum diingatkan).`,
+    );
 
-    for (const todo of tasksDueTomorrow) {
+    let sentCount = 0;
+    const details: Array<{ todoId: string; title: string; recipient: string; mocked: boolean }> = [];
+
+    for (const todo of upcomingTasks) {
       if (todo.user && todo.user.email) {
-        await this.mailService.sendTodoReminder(todo.user, todo);
-        this.logger.log(`Reminder dikirim ke: ${todo.user.email} untuk tugas "${todo.title}"`);
+        const sendResult = await this.mailService.sendTodoReminder(todo.user, todo);
+        if (sendResult.success) {
+          // Tandai reminderSent = true agar tidak dikirim berulang kali (Fase 1.4)
+          await this.prisma.todo.update({
+            where: { id: todo.id },
+            data: { reminderSent: true },
+          });
+
+          sentCount++;
+          details.push({
+            todoId: todo.id,
+            title: todo.title,
+            recipient: todo.user.email,
+            mocked: sendResult.mocked,
+          });
+        }
       }
     }
+
+    this.logger.log(`Selesai memproses pengingat: ${sentCount}/${upcomingTasks.length} reminder berhasil tercatat.`);
+    return {
+      message: 'Pemrosesan reminder selesai',
+      scanned: upcomingTasks.length,
+      sent: sentCount,
+      details,
+      timestamp: new Date().toISOString(),
+    };
   }
 
   /**
@@ -61,5 +94,6 @@ export class SchedulerService {
     this.logger.log('--- Menjalankan Cron Job: Pembersihan Berkas Orphan (Storage Leakage Prevention) ---');
     const result = await this.uploadService.cleanOrphanFiles(60); // Hapus berkas tak bertuan dengan umur > 60 menit
     this.logger.log(`Hasil pembersihan berkas orphan: ${result.deleted} file terhapus dari ${result.scanned} file dipindai.`);
+    return result;
   }
 }

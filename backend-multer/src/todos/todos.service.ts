@@ -39,6 +39,10 @@ export class TodosService {
       isCompleted,
       isPublic,
       dueDate,
+      startDate,
+      endDate,
+      sortBy,
+      sortOrder,
       page = 1, 
       limit = 10 
     } = filterDto;
@@ -46,9 +50,25 @@ export class TodosService {
     const skip = (page - 1) * limit;
 
     let dateFilter: any = undefined;
-      if (dueDate) {
-      const date = new Date(dueDate + "T00:00:00.000Z");
-
+    if (startDate && endDate) {
+      const start = new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00.000Z`);
+      const end = new Date(endDate.includes('T') ? endDate : `${endDate}T23:59:59.999Z`);
+      dateFilter = {
+        gte: start,
+        lte: end,
+      };
+    } else if (startDate) {
+      const start = new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00.000Z`);
+      dateFilter = {
+        gte: start,
+      };
+    } else if (endDate) {
+      const end = new Date(endDate.includes('T') ? endDate : `${endDate}T23:59:59.999Z`);
+      dateFilter = {
+        lte: end,
+      };
+    } else if (dueDate) {
+      const date = new Date(dueDate.includes('T') ? dueDate : `${dueDate}T00:00:00.000Z`);
       const startOfDay = new Date(date);
       startOfDay.setHours(0, 0, 0, 0);
 
@@ -61,6 +81,10 @@ export class TodosService {
       };
     }
 
+    const validSortFields = ['dueDate', 'createdAt', 'updatedAt', 'title', 'priority'];
+    const orderField = validSortFields.includes(sortBy || '') ? sortBy! : 'createdAt';
+    const orderDirection = sortOrder?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+    const orderBy: any = { [orderField]: orderDirection };
 
     const where: any = {
       userId,
@@ -74,7 +98,7 @@ export class TodosService {
       ...(category && { category }),
       ...(isCompleted !== undefined && { completed: isCompleted }),
       ...(isPublic !== undefined && { isPublic }),
-      ...(dueDate && { dueDate: dateFilter }),
+      ...(dateFilter && { dueDate: dateFilter }),
     };
 
     const [todos, total, completedCount, pendingCount] = await this.prisma.$transaction([
@@ -82,9 +106,7 @@ export class TodosService {
         where,
         take: limit,
         skip: skip,
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy,
         include: {
           user: {
             select: { id: true, username: true, name: true, email: true },
@@ -115,6 +137,10 @@ export class TodosService {
       category, 
       isCompleted,
       dueDate,
+      startDate,
+      endDate,
+      sortBy,
+      sortOrder,
       page = 1, 
       limit = 10 
     } = filterDto;
@@ -122,8 +148,25 @@ export class TodosService {
     const skip = (page - 1) * limit;
 
     let dateFilter: any = undefined;
-    if (dueDate) {
-      const date = new Date(dueDate + "T00:00:00.000Z");
+    if (startDate && endDate) {
+      const start = new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00.000Z`);
+      const end = new Date(endDate.includes('T') ? endDate : `${endDate}T23:59:59.999Z`);
+      dateFilter = {
+        gte: start,
+        lte: end,
+      };
+    } else if (startDate) {
+      const start = new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00.000Z`);
+      dateFilter = {
+        gte: start,
+      };
+    } else if (endDate) {
+      const end = new Date(endDate.includes('T') ? endDate : `${endDate}T23:59:59.999Z`);
+      dateFilter = {
+        lte: end,
+      };
+    } else if (dueDate) {
+      const date = new Date(dueDate.includes('T') ? dueDate : `${dueDate}T00:00:00.000Z`);
       const startOfDay = new Date(date);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(date);
@@ -133,6 +176,11 @@ export class TodosService {
         lte: endOfDay,
       };
     }
+
+    const validSortFields = ['dueDate', 'createdAt', 'updatedAt', 'title', 'priority'];
+    const orderField = validSortFields.includes(sortBy || '') ? sortBy! : 'createdAt';
+    const orderDirection = sortOrder?.toLowerCase() === 'asc' ? 'asc' : 'desc';
+    const orderBy: any = { [orderField]: orderDirection };
 
     const where: any = {
       isPublic: true,
@@ -145,7 +193,7 @@ export class TodosService {
       ...(priority && { priority }),
       ...(category && { category }),
       ...(isCompleted !== undefined && { completed: isCompleted }),
-      ...(dueDate && { dueDate: dateFilter }),
+      ...(dateFilter && { dueDate: dateFilter }),
     };
 
     const [todos, total] = await this.prisma.$transaction([
@@ -153,9 +201,7 @@ export class TodosService {
         where,
         take: limit,
         skip: skip,
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy,
         include: {
           user: {
             select: { id: true, username: true, name: true, email: true },

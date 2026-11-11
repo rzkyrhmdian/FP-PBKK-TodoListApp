@@ -22,6 +22,7 @@ interface Todo {
   priority: string
   category?: string
   isPublic: boolean
+  reminderSent?: boolean
   userId: string
   createdAt: string
   updatedAt: string
@@ -184,6 +185,10 @@ class ApiClient {
     isPublic?: boolean
     isCompleted?: boolean
     dueDate?: string
+    startDate?: string
+    endDate?: string
+    sortBy?: string
+    sortOrder?: 'asc' | 'desc'
     page?: number
     limit?: number
   }) {
@@ -196,6 +201,10 @@ class ApiClient {
       isPublic,
       isCompleted,
       dueDate,
+      startDate,
+      endDate,
+      sortBy,
+      sortOrder,
       page = 1,
       limit = 10,
     } = options || {}
@@ -207,6 +216,10 @@ class ApiClient {
     if (isCompleted !== undefined) params.append("isCompleted", String(isCompleted))
 
     if (dueDate) params.append("dueDate", dueDate)
+    if (startDate) params.append("startDate", startDate)
+    if (endDate) params.append("endDate", endDate)
+    if (sortBy) params.append("sortBy", sortBy)
+    if (sortOrder) params.append("sortOrder", sortOrder)
 
     if (page) params.append("page", String(page))
     if (limit) params.append("limit", String(limit))
@@ -223,17 +236,38 @@ class ApiClient {
     category?: string
     isCompleted?: boolean
     dueDate?: string
+    startDate?: string
+    endDate?: string
+    sortBy?: string
+    sortOrder?: 'asc' | 'desc'
     page?: number
     limit?: number
   }) {
     const params = new URLSearchParams()
-    const { search, priority, category, isCompleted, dueDate, page = 1, limit = 10 } = options || {}
+    const { 
+      search, 
+      priority, 
+      category, 
+      isCompleted, 
+      dueDate, 
+      startDate,
+      endDate,
+      sortBy,
+      sortOrder,
+      page = 1, 
+      limit = 10 
+    } = options || {}
 
     if (search) params.append("search", search)
     if (priority && priority !== "all") params.append("priority", priority)
     if (category && category !== "all") params.append("category", category)
     if (isCompleted !== undefined) params.append("isCompleted", String(isCompleted))
     if (dueDate) params.append("dueDate", dueDate)
+    if (startDate) params.append("startDate", startDate)
+    if (endDate) params.append("endDate", endDate)
+    if (sortBy) params.append("sortBy", sortBy)
+    if (sortOrder) params.append("sortOrder", sortOrder)
+
     if (page) params.append("page", String(page))
     if (limit) params.append("limit", String(limit))
 
@@ -266,7 +300,55 @@ class ApiClient {
     })
   }
 
-  // User endpoints
+  // User endpoints (Fase 1.5)
+  async getProfile(): Promise<{
+    user: UserData & { createdAt: string; updatedAt: string }
+    stats: {
+      totalTodos: number
+      completedTodos: number
+      pendingTodos: number
+      publicTodos: number
+    }
+  }> {
+    return this.fetchWithAuth(`${API_URL}/users/me`, {
+      method: "GET",
+      headers: this.getHeaders(true),
+    })
+  }
+
+  async updateProfile(updates: { name?: string; email?: string }): Promise<{
+    message: string
+    user: UserData & { createdAt: string; updatedAt: string }
+  }> {
+    return this.fetchWithAuth(`${API_URL}/users/me`, {
+      method: "PATCH",
+      headers: this.getHeaders(true),
+      body: JSON.stringify(updates),
+    })
+  }
+
+  async changePassword(oldPassword: string, newPassword: string): Promise<{ message: string }> {
+    return this.fetchWithAuth(`${API_URL}/users/change-password`, {
+      method: "POST",
+      headers: this.getHeaders(true),
+      body: JSON.stringify({ oldPassword, newPassword }),
+    })
+  }
+
+  // Scheduler & Reminder endpoints (Fase 1.4)
+  async triggerReminders(): Promise<{
+    message: string
+    scanned: number
+    sent: number
+    details: any[]
+    timestamp: string
+  }> {
+    return this.fetchWithAuth(`${API_URL}/scheduler/trigger-reminders`, {
+      method: "POST",
+      headers: this.getHeaders(true),
+    })
+  }
+
   async searchUsers(search: string): Promise<UserData[]> {
     const params = new URLSearchParams()
     if (search) params.append("search", search)

@@ -36,8 +36,9 @@ model Todo {
   dueDate     DateTime?
   priority    String    @default("medium")
   category    String?
-  isPublic    Boolean   @default(false)
-  userId      String
+  isPublic     Boolean   @default(false)
+  reminderSent Boolean   @default(false)
+  userId       String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
